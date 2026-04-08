@@ -1,8 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { prisma } from "../prisma.js";
-import { signAccessToken } from "../auth.js";
+import { supabase } from "../supabase.js";
 
 export const authRouter = Router();
 
@@ -16,14 +14,15 @@ authRouter.post("/signup", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
   const { email, password } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return res.status(409).json({ error: "Email already in use" });
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({ data: { email, passwordHash } });
-  const token = signAccessToken({ userId: user.id, email: user.email });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
 
-  return res.json({ token, user: { id: user.id, email: user.email } });
+  if (error) return res.status(400).json({ error: error.message });
+
+  return res.json({ token: data.session?.access_token, user: { id: data.user?.id, email: data.user?.email } });
 });
 
 const loginSchema = z.object({
@@ -36,18 +35,24 @@ authRouter.post("/login", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
   const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return res.status(401).json({ error: "Invalid email or password" });
 
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ error: "Invalid email or password" });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-  const token = signAccessToken({ userId: user.id, email: user.email });
-  return res.json({ token, user: { id: user.id, email: user.email } });
+  if (error) return res.status(401).json({ error: error.message });
+
+  return res.json({ token: data.session?.access_token, user: { id: data.user?.id, email: data.user?.email } });
 });
 
 authRouter.get("/me", async (req, res) => {
-  // This endpoint is optional for the frontend; it can decode token client-side too.
-  return res.status(501).json({ error: "Not implemented. Use /trips with auth to validate token." });
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: "No token provided" });
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error) return res.status(401).json({ error: error.message });
+
+  return res.json({ user: { id: data.user?.id, email: data.user?.email } });
 });
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../prisma.js";
+import { supabase } from "../supabase.js";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.js";
 import { decryptString, encryptString } from "../crypto.js";
 
@@ -9,7 +9,13 @@ settingsRouter.use(requireAuth);
 
 settingsRouter.get("/", async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
-  const settings = await prisma.userSetting.findMany({ where: { userId } });
+  const { data: settings, error } = await supabase
+    .from('UserSetting')
+    .select('*')
+    .eq('userId', userId);
+
+  if (error) return res.status(500).json({ error: error.message });
+
   const out: Record<string, string> = {};
   for (const s of settings) {
     try {
@@ -32,12 +38,15 @@ settingsRouter.put("/", async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
 
   const valueEnc = encryptString(parsed.data.value);
-  await prisma.userSetting.upsert({
-    where: { userId_key: { userId, key: parsed.data.key } },
-    update: { valueEnc },
-    create: { userId, key: parsed.data.key, valueEnc },
-  });
+  const { error } = await supabase
+    .from('UserSetting')
+    .upsert({
+      userId,
+      key: parsed.data.key,
+      valueEnc
+    }, { onConflict: 'userId,key' });
 
+  if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
 });
 

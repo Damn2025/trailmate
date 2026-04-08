@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { requireAuth, type AuthedRequest } from "../middleware/requireAuth.js";
-import { prisma } from "../prisma.js";
+import { supabase } from "../supabase.js";
 import { decryptString } from "../crypto.js";
 import { env } from "../env.js";
 
@@ -29,10 +29,14 @@ function toSafeAiError(e: unknown) {
 }
 
 async function getGeminiKeyForUser(userId: string) {
-  const setting = await prisma.userSetting.findUnique({
-    where: { userId_key: { userId, key: "geminiApiKey" } },
-  });
-  if (!setting) return null;
+  const { data: setting, error } = await supabase
+    .from('UserSetting')
+    .select('valueEnc')
+    .eq('userId', userId)
+    .eq('key', 'geminiApiKey')
+    .single();
+
+  if (error || !setting) return null;
   try {
     return decryptString(setting.valueEnc);
   } catch {

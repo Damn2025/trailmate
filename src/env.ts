@@ -2,7 +2,8 @@ import "dotenv/config";
 import { z } from "zod";
 
 const schema = z.object({
-  DATABASE_URL: z.string().min(1),
+  SUPABASE_URL: z.string().min(1),
+  SUPABASE_ANON_KEY: z.string().min(1),
   JWT_SECRET: z.string().min(16),
   ENCRYPTION_KEY: z.string().min(1),
   AI_API_KEY: z.string().optional(),

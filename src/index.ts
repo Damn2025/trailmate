@@ -24,6 +24,7 @@ app.use("/trips", tripsRouter);
 app.use("/settings", settingsRouter);
 app.use("/chat", chatRouter);
 app.use("/ai", aiRouter);
+   
 
 app.listen(env.PORT, () => {
   // eslint-disable-next-line no-console
